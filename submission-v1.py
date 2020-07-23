@@ -79,13 +79,11 @@ def compute_max_ships(step):
   if step < 200:
     return CONFIG_MAX_SHIPS
   elif step < 300:
-    return CONFIG_MAX_SHIPS-4
+    return CONFIG_MAX_SHIPS-2
   elif step < 350:
-    return CONFIG_MAX_SHIPS-6
-  elif step < 394:
-    return CONFIG_MAX_SHIPS-10
+    return CONFIG_MAX_SHIPS-4
   else:
-    return 0
+    return CONFIG_MAX_SHIPS-5
 
 def set_turn_data(board):
   #initialize the global turn data for this turn
