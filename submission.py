@@ -19,7 +19,7 @@ agent must run in less than 6 sec
 Syntax errors when running the file do not cause any message, but cause your agent to do nothing
 
 '''
-CONFIG_MAX_SHIPS=32
+CONFIG_MAX_SHIPS=36
 
 #print('kaggle version',kaggle_environments.__version__)
 #### Global variables
@@ -79,11 +79,11 @@ def compute_max_ships(step):
   if step < 200:
     return CONFIG_MAX_SHIPS
   elif step < 300:
-    return CONFIG_MAX_SHIPS-4
-  elif step < 350:
     return CONFIG_MAX_SHIPS-6
-  elif step < 394:
-    return CONFIG_MAX_SHIPS-10
+  elif step < 380:
+    return CONFIG_MAX_SHIPS-8
+  elif step < 390:
+    return CONFIG_MAX_SHIPS-12
   else:
     return 0
 
@@ -130,7 +130,7 @@ def num_turns_to_mine(C,H,rt_travel):
   elif H==0:
     ch=turns_optimal.shape[0]
   else:
-    ch=int(math.log(C/H)*2.5+5.5)
+    ch=int(math.log(C/H)*2.5+5.5)                # Tweaked this original: ch=int(math.log(C/H)*2.5+5.5)
     ch=limit(ch,0,turns_optimal.shape[0]-1)
   rt_travel=int(limit(rt_travel,0,turns_optimal.shape[1]-1))
   return turns_optimal[ch,rt_travel]
@@ -161,7 +161,7 @@ def move(pos, action):
   #print('move pos {} {} => {}'.format(pos,action,ret))
   return ret % size
 
-def dirs_to(p1, p2, size=21):
+def dirs_to(p1, p2, size = 21):
   #Get the actions you should take to go from Point p1 to Point p2
   #using shortest direction by wraparound
   #Args: p1: from Point
@@ -242,7 +242,7 @@ def nearest_shipyard(pos):
       mn=d
       best_pos=sy.position
   return mn,best_pos
-  
+
 def assign_targets(board,ships):
   #Assign the ships to a cell containing halite optimally
   #set ship_target[ship_id] to a Position
@@ -250,13 +250,13 @@ def assign_targets(board,ships):
   #directly if that is optimal, based on maximizing halite per step.
   #Make a list of pts containing cells we care about, this will be our columns of matrix C
   #the rows are for each ship in collect
-  #computes global dict ship_tagert with shipid->Position for its target
+  #computes global dict ship_target with shipid->Position for its target
   #global ship targets should already exist
   old_target=copy.copy(ship_target)
   ship_target.clear()
   if len(ships)==0:
     return
-  halite_min=50
+  halite_min=20
   pts1=[]
   pts2=[]
   for pt,c in board.cells.items():
@@ -298,9 +298,9 @@ def assign_targets(board,ships):
         if enemy_halite <= my_halite:
           v = -1000   # don't want to go there
         else:
-          if d1<5:
+          if d1 < 2 and my_halite < 30:
             #attack or scare off if reasonably quick to get there
-            v+= enemy_halite/(d1+1)  # want to attack them or scare them off
+            v += enemy_halite/(d1+1)  # want to attack them or scare them off
       #print('shipid {} col {} is {} with {:8.1f} score {:8.2f}'.format(ship.id,j, pt,board.cells[pt].halite,v))
       C[i,j]=v
   print('C is {}'.format(C.shape))
@@ -445,6 +445,11 @@ def ship_moves(board):
         break
     ship.next_action=action
     turn.taken[m]=1
+
+  # if game is ending, all ships return to yard
+  for ship in me.ships:
+    if nearest_shipyard(ship.position)[0] >= (board.configuration.episode_steps - board.step - 2) and ship.halite > 0:
+        ship.next_action = dirs_to(ship.position, nearest_shipyard(ship.position)[1], size = size)[0][0]
     
 # Returns the commands we send to our ships and shipyards, must be last function in file
 def agent(obs, config):
