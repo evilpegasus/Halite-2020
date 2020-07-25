@@ -130,7 +130,7 @@ def num_turns_to_mine(C,H,rt_travel):
   elif H==0:
     ch=turns_optimal.shape[0]
   else:
-    ch=int(math.log(C/H)*2.5+5.5)                # Tweaked this original: ch=int(math.log(C/H)*2.5+5.5)
+    ch=int(math.log(C/H)*3.0+5.5)                # Tuned this. Original: ch=int(math.log(C/H)*2.5+5.5)
     ch=limit(ch,0,turns_optimal.shape[0]-1)
   rt_travel=int(limit(rt_travel,0,turns_optimal.shape[1]-1))
   return turns_optimal[ch,rt_travel]
@@ -336,7 +336,7 @@ def make_avoidance_matrix(myship_halite):
   #turn.ES=enemy shipyard matrix
   filter=np.array([[0,1,0],[1,1,1],[0,1,0]])
   bad_ship=np.logical_and(turn.EH <= myship_halite,turn.EP)
-  avoid=scipy.ndimage.convolve(bad_ship, filter, mode='wrap',cval=0.0)
+  avoid=scipy.ndimage.convolve(bad_ship, filter, mode='wrap', cval=0.0)
   avoid=np.logical_or(avoid,turn.ES)
   return avoid
 
@@ -345,7 +345,8 @@ def make_attack_matrix(myship_halite):
   #for now, we just move to where the ship is.
   #turn.EP=enemy position matrix
   #turn.EH=enemy halite matrix
-  attack=np.logical_and(turn.EH > myship_halite,turn.EP)
+  attack = np.logical_and(turn.EH > myship_halite, turn.EP)
+  attack = np.logical_and(attack, turn.EH > 150)
   #print('attack',attack)
   return attack
 
@@ -392,12 +393,13 @@ def ship_converts(board):
     #CHECK if in danger without escape, convert if h>500
     avoid=make_avoidance_matrix(ship.halite)
     z=[matrix_lookup(avoid,move(ship.position,a)) for a in all_actions]
-    if np.all(z) and ship.halite > 500:
-      ship.next_action=ShipAction.CONVERT
-      turn.taken[ship.position]=1
-      turn.num_shipyards+=1
-      turn.total_halite-=500
-      print('ship id {} no escape converting'.format(ship.id))
+    if np.all(z):
+      if ship.halite > 500:
+        ship.next_action=ShipAction.CONVERT
+        turn.taken[ship.position]=1
+        turn.num_shipyards+=1
+        turn.total_halite-=500
+        print('ship id {} no escape converting'.format(ship.id))
     #CHECK if last step and > 500 halite, convert
     if turn.last_episode and ship.halite > 500:
       ship.next_action=ShipAction.CONVERT
@@ -406,7 +408,7 @@ def ship_converts(board):
       turn.total_halite-=500
       
 def ship_moves(board):
-  ships=[ship for ship in me.ships if ship.next_action is None]
+  ships = [ship for ship in me.ships if ship.next_action is None]
   #update ship_target
   assign_targets(board,ships)
   #For all ships without a target, we give them a random movement (we will check below if this
@@ -419,13 +421,13 @@ def ship_moves(board):
       actions[ship.id]=[random.choice(all_actions)]
       
   for ship in ships:
-    action=None
-    x=ship.position
+    action = None
+    x = ship.position
     #generate matrix of places to attack and places to avoid
-    avoid=make_avoidance_matrix(ship.halite)
-    attack=make_attack_matrix(ship.halite)
+    avoid = make_avoidance_matrix(ship.halite)
+    attack = make_attack_matrix(ship.halite)
     #see if there is a attack options
-    action_list=actions[ship.id]+[None]+all_actions
+    action_list = actions[ship.id] + [None] + all_actions
     #see if we should add an attack diversion to our options
     #NOTE: we will avoid attacking a ship that is on the avoid spot - is this a good idea?
     for a in all_actions:
@@ -435,16 +437,25 @@ def ship_moves(board):
         action_list.insert(0,a)
         break
     #now try the options, but don't bother repeating any
-    action_list=remove_dups(action_list)
+    action_list = remove_dups(action_list)
     for a in action_list:
       m=move(x,a)
       if avoid[m.y,m.x]:
         print('ship id {} avoiding {}'.format(ship.id,a))
       if m not in turn.taken and not avoid[m.y,m.x]:
-        action=a
+        action = a
         break
-    ship.next_action=action
-    turn.taken[m]=1
+    # Ship is surrounded, try evasive maneuvers
+    z=[matrix_lookup(avoid,move(ship.position,a)) for a in all_actions]
+    if np.all(z):
+      if action == None:
+        for a in all_actions:
+          m = move(x, a)
+          if m not in turn.taken:
+            action = a
+
+    ship.next_action = action
+    turn.taken[m] = 1
 
   # if game is ending, all ships return to yard
   for ship in me.ships:
